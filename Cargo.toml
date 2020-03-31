@@ -1,0 +1,15 @@
+[package]
+name = "liveu_stats_bot"
+version = "0.1.0"
+authors = ["Brian Spit <brian@mythenatic.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = { version = "0.10", features = ["json"]}
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+base64 = "0.12.0"
+uuid = { version = "0.8", features = ["v4"] }
+tokio = { version = "0.2", features = ["full"] }
