@@ -1,10 +1,11 @@
-//use crate::Config::Liveu as CLiveu;
 use crate::config::Liveu as CLiveu;
 use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
+use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 const APPLICATION_ID: &str = "SlZ3SHqiqtYJRkF0zO";
@@ -28,17 +29,10 @@ struct Data {
     response: AuthRes,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 struct AuthRes {
     access_token: String,
-    expires_in: u32,
-}
-
-#[derive(Debug)]
-pub struct Liveu {
-    user_sesson: String,
-    auth: AuthRes,
-    user: CLiveu,
+    expires_in: u64,
 }
 
 #[derive(Deserialize, Debug)]
@@ -50,6 +44,18 @@ pub struct Unit {
 #[derive(Deserialize, Debug)]
 pub struct Inventories {
     pub units: Option<Vec<Unit>>,
+}
+
+#[derive(Debug)]
+pub struct InnerLiveu {
+    user_session: String,
+    auth: AuthRes,
+    user: CLiveu,
+}
+
+#[derive(Debug)]
+pub struct Liveu {
+    pub data: Arc<Mutex<InnerLiveu>>,
 }
 
 impl Liveu {
@@ -74,19 +80,23 @@ impl Liveu {
             .await?;
 
         Ok(Self {
-            user_sesson: user_session.to_string(),
-            auth: res.data.response,
-            user: liveu_config,
+            data: Arc::new(Mutex::new(InnerLiveu {
+                user_session: user_session.to_string(),
+                auth: res.data.response,
+                user: liveu_config,
+            })),
         })
     }
 
     pub async fn get_inventories(&self) -> Result<Inventories, LiveuError> {
+        let d = self.data.lock().await;
+
         let client = reqwest::Client::new();
         let res = client
             .get("https://lu-central.liveu.tv/luc/luc-core-web/rest/v0/inventories")
             .header(ACCEPT, "application/json, text/plain, */*")
             .header(ACCEPT_LANGUAGE, "en-US,en;q=0.9")
-            .header(AUTHORIZATION, format!("Bearer {}", self.auth.access_token))
+            .header(AUTHORIZATION, format!("Bearer {}", &d.auth.access_token))
             .header("application-id", APPLICATION_ID)
             .send()
             .await?;
@@ -104,5 +114,26 @@ impl Liveu {
         }
     }
 
-    //async fn refresh_token(&self) {}
+    pub fn refresh_token(&self) -> tokio::task::JoinHandle<()> {
+        let shared = self.data.clone();
+
+        tokio::spawn(async move {
+            loop {
+                let secs = { shared.lock().await.auth.expires_in };
+                tokio::time::delay_for(std::time::Duration::from_secs(secs)).await;
+                let mut data = shared.lock().await;
+
+                match Liveu::authenticate(data.user.to_owned()).await {
+                    Ok(d) => {
+                        let req_data = d.data.lock().await;
+                        data.user_session = req_data.user_session.to_owned();
+                        data.auth = req_data.auth.to_owned();
+                    }
+                    Err(e) => panic!(e),
+                };
+
+                println!("Updated value 1");
+            }
+        })
+    }
 }

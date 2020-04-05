@@ -1,6 +1,5 @@
 use read_input::prelude::*;
 use serde::{Deserialize, Serialize};
-use serde_json::{from_str, Value};
 use std::fs;
 use thiserror::Error;
 
@@ -19,7 +18,7 @@ pub struct Config {
     pub twitch: Twitch,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Liveu {
     pub email: String,
     pub password: String,
