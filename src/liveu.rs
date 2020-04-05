@@ -1,6 +1,6 @@
 use crate::config::Liveu as CLiveu;
 use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONTENT_TYPE};
-use reqwest::StatusCode;
+use reqwest::{RequestBuilder, StatusCode};
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
@@ -36,14 +36,37 @@ struct AuthRes {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct UnitInterfaces {
+    interfaces: Vec<Interface>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Interface {
+    connected: bool,
+    name: String,
+    downlink_kbps: u32,
+    uplink_kbps: u32,
+    enabled: bool,
+    port: String,
+    technology: String,
+    up_signal_quality: u32,
+    down_signal_quality: u32,
+    active_sim: String,
+    is_currently_roaming: bool,
+    kbps: u32,
+    signal_quality: u32,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct Unit {
-    id: String,
-    reg_code: String,
+    pub id: String,
+    pub reg_code: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Inventories {
-    pub units: Option<Vec<Unit>>,
+    pub units: Vec<Unit>,
 }
 
 #[derive(Debug)]
@@ -91,15 +114,12 @@ impl Liveu {
     pub async fn get_inventories(&self) -> Result<Inventories, LiveuError> {
         let d = self.data.lock().await;
 
-        let client = reqwest::Client::new();
-        let res = client
-            .get("https://lu-central.liveu.tv/luc/luc-core-web/rest/v0/inventories")
-            .header(ACCEPT, "application/json, text/plain, */*")
-            .header(ACCEPT_LANGUAGE, "en-US,en;q=0.9")
-            .header(AUTHORIZATION, format!("Bearer {}", &d.auth.access_token))
-            .header("application-id", APPLICATION_ID)
-            .send()
-            .await?;
+        let res = create_get_request(
+            "https://lu-central.liveu.tv/luc/luc-core-web/rest/v0/inventories",
+            &d.auth.access_token,
+        )
+        .send()
+        .await?;
 
         match res.status() {
             StatusCode::OK => {
@@ -109,8 +129,33 @@ impl Liveu {
                     res_json["data"]["inventories"][0].to_owned(),
                 )?)
             }
-            StatusCode::NO_CONTENT => Ok(Inventories { units: None }),
+            //FIXME: Handle error
             _ => panic!("ERROR GET_INVENTORIES report this to 715209"),
+        }
+    }
+
+    pub async fn get_unit(&self, boss_id: &str) -> Result<Vec<Interface>, LiveuError> {
+        let d = self.data.lock().await;
+
+        let res = create_get_request(
+            &format!(
+                "https://lu-central.liveu.tv/luc/luc-core-web/rest/v0/units/{}/status/interfaces",
+                &boss_id
+            ),
+            &d.auth.access_token,
+        )
+        .send()
+        .await?;
+
+        match res.status() {
+            StatusCode::OK => {
+                // let res: Vec<Interface> = res.json().await?;
+                // Ok(UnitInterfaces { interfaces: res })
+                Ok(res.json().await?)
+            }
+            // Ok(UnitInterfaces { interfaces: vec![] }),
+            StatusCode::NO_CONTENT => Ok(vec![]),
+            _ => panic!("ERROR GET_UNIT report this to 715209"),
         }
     }
 
@@ -131,9 +176,17 @@ impl Liveu {
                     }
                     Err(e) => panic!(e),
                 };
-
-                println!("Updated value 1");
             }
         })
     }
+}
+
+fn create_get_request(url: &str, access_token: &str) -> RequestBuilder {
+    let client = reqwest::Client::new();
+    client
+        .get(url)
+        .header(ACCEPT, "application/json, text/plain, */*")
+        .header(ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .header(AUTHORIZATION, format!("Bearer {}", &access_token))
+        .header("application-id", APPLICATION_ID)
 }
