@@ -43,7 +43,7 @@ pub struct UnitInterfaces {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Interface {
-    connected: bool,
+    pub connected: bool,
     name: String,
     downlink_kbps: u32,
     uplink_kbps: u32,

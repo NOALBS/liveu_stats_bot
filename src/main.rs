@@ -48,11 +48,14 @@ async fn main() {
         }
     };
 
-    let stats = match api.get_unit(&inventories.units[id].id).await {
+    let interfaces = match api.get_unit(&inventories.units[id].id).await {
         Ok(d) => d,
         Err(e) => panic!("Error get unit: {}", e),
     };
-    println!("Stats: {:#?}", stats);
+
+    let filter_interfaces: Vec<liveu::Interface> =
+        interfaces.into_iter().filter(|x| x.connected).collect();
+    println!("Stats: {:#?}", filter_interfaces);
 
     let _ = keep_me_alive.await;
 }
