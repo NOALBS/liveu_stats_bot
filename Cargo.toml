@@ -13,5 +13,10 @@ serde = { version = "1.0", features = ["derive"] }
 base64 = "0.12.0"
 uuid = { version = "0.8", features = ["v4"] }
 tokio = { version = "0.2", features = ["full"] }
+tokio-util = "0.3"
 thiserror = "1.0"
+anyhow = "1.0"
 read_input = "0.8.4"
+futures = "0.3"
+
+irc_parser = { git = "https://github.com/715209/irc_parser" }
