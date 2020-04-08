@@ -1,10 +1,12 @@
 use crate::config;
 use futures::StreamExt;
 use irc_parser::Message;
+use native_tls::TlsConnector;
 use thiserror::Error;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio::sync::mpsc;
+use tokio_tls;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
 #[derive(Error, Debug)]
@@ -17,6 +19,9 @@ pub enum TwitchError {
 
     #[error("Channel receive error: {0}")]
     ChannelReceiveError(#[from] mpsc::error::RecvError),
+
+    #[error("Error getting secure connection: {0}")]
+    TlsError(#[from] native_tls::Error),
 }
 
 pub struct Twitch {
@@ -27,7 +32,10 @@ pub struct Twitch {
 
 impl Twitch {
     pub async fn connect(twitch_config: config::Twitch) -> Result<Twitch, TwitchError> {
-        let mut stream = TcpStream::connect("irc.chat.twitch.tv:6667").await?;
+        let stream = TcpStream::connect("irc.chat.twitch.tv:6697").await?;
+        let cx = TlsConnector::builder().build()?;
+        let cx = tokio_tls::TlsConnector::from(cx);
+        let mut stream = cx.connect("irc.chat.twitch.tv", stream).await?;
 
         stream
             .write(b"CAP REQ :twitch.tv/tags twitch.tv/commands\r\n")

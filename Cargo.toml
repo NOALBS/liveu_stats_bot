@@ -18,5 +18,7 @@ thiserror = "1.0"
 anyhow = "1.0"
 read_input = "0.8.4"
 futures = "0.3"
+tokio-tls = "0.3.0"
+native-tls = "0.2"
 
 irc_parser = { git = "https://github.com/715209/irc_parser" }
