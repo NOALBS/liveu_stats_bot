@@ -131,8 +131,7 @@ impl Twitch {
     }
 
     pub async fn send_message(&mut self, channel: &str, message: &str) -> Result<(), TwitchError> {
-        &self
-            .write
+        self.write
             .send(format!("PRIVMSG #{} :{}\r\n", channel, message))
             .await?;
         Ok(())

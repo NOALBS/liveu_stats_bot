@@ -1,3 +1,5 @@
+#![deny(dead_code, unused_imports, clippy::clone_on_copy)]
+
 mod config;
 mod liveu;
 mod twitch;
@@ -63,8 +65,8 @@ async fn main() -> Result<()> {
                 .collect();
 
             println!("{:#?}", interfaces);
-            if interfaces.len() == 0 {
-                &client.send_message(&channel, "LiveU Offline :(").await?;
+            if interfaces.is_empty() {
+                client.send_message(&channel, "LiveU Offline :(").await?;
                 continue;
             }
 
@@ -72,11 +74,11 @@ async fn main() -> Result<()> {
             let mut total = 0;
 
             for (pos, interface) in interfaces.iter().enumerate() {
-                let mut separator = ", ";
-
-                if pos == interfaces.len() - 1 {
-                    separator = "";
-                }
+                let separator = if pos == interfaces.len() - 1 {
+                    ""
+                } else {
+                    ", "
+                };
 
                 message = format!(
                     "{}{}: {} Kbps{}",
@@ -87,17 +89,17 @@ async fn main() -> Result<()> {
             }
 
             if total == 0 {
-                &client
+                client
                     .send_message(&channel, "LiveU Online and Ready")
                     .await?;
                 continue;
             }
 
-            &client.send_message(&channel, &message).await?;
-            &client
+            client.send_message(&channel, &message).await?;
+            client
                 .send_message(
                     &channel,
-                    &format!("TOTAL BITRATE) LiveU to LRT: {} Kbps", total),
+                    &format!("(TOTAL BITRATE) LiveU to LRT: {} Kbps", total),
                 )
                 .await?;
         }
