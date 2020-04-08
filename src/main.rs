@@ -9,6 +9,8 @@ use liveu::Liveu;
 
 use anyhow::{Context, Result};
 use read_input::prelude::*;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,9 +37,19 @@ async fn main() -> Result<()> {
     println!("Twitch: Connected");
 
     let channel = client.config.channel.to_owned();
+    let cooldown = client.config.command_cooldown.to_owned() as u64;
+    let is_timeout = Arc::new(AtomicBool::new(false));
+
     while let Some(msg) = &client.read.recv().await {
-        if client.config.commands.contains(msg) {
-            //TODO: add timeout
+        if client.config.commands.contains(msg) && !is_timeout.load(Ordering::Acquire) {
+            let t = is_timeout.clone();
+
+            tokio::spawn(async move {
+                t.store(true, Ordering::Release);
+                tokio::time::delay_for(std::time::Duration::from_secs(cooldown)).await;
+                t.store(false, Ordering::Release);
+            });
+
             let interfaces: Vec<liveu::Interface> = api
                 .get_unit(&inventories.units[boss_id].id)
                 .await
@@ -64,7 +76,7 @@ async fn main() -> Result<()> {
                 })
                 .collect();
 
-            println!("{:#?}", interfaces);
+            //println!("{:#?}", interfaces);
             if interfaces.is_empty() {
                 client.send_message(&channel, "LiveU Offline :(").await?;
                 continue;
