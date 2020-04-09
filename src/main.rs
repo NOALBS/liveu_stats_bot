@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
                 continue;
             }
 
-            let mut message: String = "(MODEMS) ".to_string();
+            let mut message = "".to_string();
             let mut total = 0;
 
             for (pos, interface) in interfaces.iter().enumerate() {
@@ -92,11 +92,12 @@ async fn main() -> Result<()> {
                     ", "
                 };
 
-                message = format!(
-                    "{}{}: {} Kbps{}",
-                    message, interface.port, interface.uplink_kbps, separator
-                )
-                .to_owned();
+                message = message
+                    + &format!(
+                        "{}: {} Kbps{}",
+                        interface.port, interface.uplink_kbps, separator
+                    );
+
                 total += interface.uplink_kbps;
             }
 
@@ -108,12 +109,18 @@ async fn main() -> Result<()> {
             }
 
             client.send_message(&channel, &message).await?;
-            client
-                .send_message(
-                    &channel,
-                    &format!("(TOTAL BITRATE) LiveU to LRT: {} Kbps", total),
-                )
-                .await?;
+
+            let mut message = format!("LRT: {} Kbps", total);
+
+            if let Some(conf) = config.rtmp.to_owned() {
+                if let Ok(Some(bitrate)) = liveu::get_rtmp_bitrate(conf).await {
+                    message = message + &format!(", RTMP: {} Kbps", bitrate);
+                } else {
+                    message = message + ", RTMP: Offline";
+                }
+            }
+
+            client.send_message(&channel, &message).await?;
         }
     }
 

@@ -1,4 +1,4 @@
-use crate::config::Liveu as CLiveu;
+use crate::config::{Liveu as CLiveu, Rtmp};
 use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::{RequestBuilder, StatusCode};
 use serde::Deserialize;
@@ -17,6 +17,12 @@ pub enum LiveuError {
 
     #[error("Json error: {0}")]
     Json(#[from] serde_json::error::Error),
+
+    #[error("XML parsing error: {0}")]
+    Xml(#[from] quick_xml::DeError),
+
+    #[error("Rtmp is offline: {0}")]
+    RtmpDown(String),
 }
 
 #[derive(Deserialize)]
@@ -189,4 +195,75 @@ fn create_get_request(url: &str, access_token: &str) -> RequestBuilder {
         .header(ACCEPT_LANGUAGE, "en-US,en;q=0.9")
         .header(AUTHORIZATION, format!("Bearer {}", &access_token))
         .header("application-id", APPLICATION_ID)
+}
+
+#[derive(Deserialize, Debug)]
+struct NginxRtmpStats {
+    server: NginxRtmpServer,
+}
+
+#[derive(Deserialize, Debug)]
+struct NginxRtmpServer {
+    application: Vec<NginxRtmpApp>,
+}
+
+#[derive(Deserialize, Debug)]
+struct NginxRtmpApp {
+    name: String,
+    live: NginxRtmpLive,
+}
+
+#[derive(Deserialize, Debug)]
+struct NginxRtmpLive {
+    stream: Option<Vec<NginxRtmpStream>>,
+}
+
+#[derive(Deserialize, Debug)]
+struct NginxRtmpStream {
+    name: String,
+    bw_video: u32,
+}
+
+pub async fn get_rtmp_bitrate(rtmp: Rtmp) -> Result<Option<u32>, LiveuError> {
+    let res = match reqwest::get(&rtmp.url).await {
+        Ok(d) => d,
+        Err(_) => {
+            return Err(LiveuError::RtmpDown(
+                "Can't connect to RTMP stats".to_owned(),
+            ))
+        }
+    };
+
+    match res.status() {
+        StatusCode::OK => {
+            let text = res.text().await?;
+            let parsed: NginxRtmpStats = quick_xml::de::from_str(&text)?;
+
+            let mut filter: Vec<NginxRtmpStream> = parsed
+                .server
+                .application
+                .into_iter()
+                .filter_map(|x| {
+                    if x.name == rtmp.application {
+                        x.live.stream
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+                .filter(|x| x.name == rtmp.key)
+                .collect();
+
+            if let Some(stream) = filter.pop() {
+                return Ok(Some(stream.bw_video / 1024));
+            }
+        }
+        _ => {
+            return Err(LiveuError::RtmpDown(
+                "Can't connect to RTMP stats".to_owned(),
+            ))
+        }
+    }
+
+    Ok(None)
 }

@@ -402,6 +402,7 @@ dependencies = [
  "futures",
  "irc_parser",
  "native-tls",
+ "quick-xml",
  "read_input",
  "reqwest",
  "serde",
@@ -655,6 +656,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df246d292ff63439fea9bc8c0a270bed0e390d5ebd4db4ba15aba81111b5abe3"
 dependencies = [
  "unicode-xid",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cc440ee4802a86e357165021e3e255a9143724da31db1e2ea540214c96a0f82"
+dependencies = [
+ "memchr",
+ "serde",
 ]
 
 [[package]]

@@ -16,6 +16,7 @@ pub enum ConfigError {
 pub struct Config {
     pub liveu: Liveu,
     pub twitch: Twitch,
+    pub rtmp: Option<Rtmp>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -32,6 +33,13 @@ pub struct Twitch {
     pub channel: String,
     pub commands: Vec<String>,
     pub command_cooldown: u16,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Rtmp {
+    pub url: String,
+    pub application: String,
+    pub key: String,
 }
 
 // FIXME: Ask if input is correct
@@ -63,7 +71,27 @@ impl Config {
                         .get(),
                 };
 
-                let config = Config { liveu, twitch };
+                let q: String = input()
+                    .msg("Are you using nginx and would you like to display it's bitrate as well (y/n): ")
+                    .add_test(|x: &String| x.to_lowercase() == "y" || x.to_lowercase() == "n")
+                    .err("Please enter y or n: ")
+                    .get();
+
+                let mut rtmp = None;
+
+                if q == "y" {
+                    rtmp = Some(Rtmp {
+                        url: input().msg("Please enter the stats page URL: ").get(),
+                        application: input().msg("Application name: ").get(),
+                        key: input().msg("Stream key: ").get(),
+                    });
+                }
+
+                let config = Config {
+                    liveu,
+                    twitch,
+                    rtmp,
+                };
                 fs::write("config.json", serde_json::to_string_pretty(&config)?)?;
 
                 print!("\x1B[2J");
