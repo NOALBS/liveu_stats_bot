@@ -95,7 +95,10 @@ impl Config {
                 fs::write("config.json", serde_json::to_string_pretty(&config)?)?;
 
                 print!("\x1B[2J");
-                println!("\nSaved settings to config.json");
+
+                let mut path = std::env::current_dir()?;
+                path.push("config.json");
+                println!("Saved settings to config.json in {}", path.display());
 
                 Ok(config)
             }
