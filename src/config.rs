@@ -148,7 +148,7 @@ pub struct CustomUnitNames {
 impl Default for CustomUnitNames {
     fn default() -> Self {
         CustomUnitNames {
-            ethernet: "Ethernet".to_string(),
+            ethernet: "ETH".to_string(),
             wifi: "WiFi".to_string(),
             usb1: "USB1".to_string(),
             usb2: "USB2".to_string(),
