@@ -102,19 +102,8 @@ impl Twitch {
         let mut message = String::new();
         let mut total_bitrate = 0;
 
-        for (pos, interface) in interfaces.iter().enumerate() {
-            let separator = if pos == interfaces.len() - 1 {
-                " "
-            } else {
-                ", "
-            };
-
-            message = message
-                + &format!(
-                    "{}: {} Kbps{}",
-                    interface.port, interface.uplink_kbps, separator
-                );
-
+        for interface in interfaces.iter() {
+            message = message + &format!("{}: {} Kbps, ", interface.port, interface.uplink_kbps);
             total_bitrate += interface.uplink_kbps;
         }
 
@@ -122,7 +111,7 @@ impl Twitch {
             return Ok("LiveU Online and Ready".to_string());
         }
 
-        message += &format!("LRT: {} Kbps", total_bitrate);
+        message += &format!("Total LRT: {} Kbps", total_bitrate);
 
         if let Some(rtmp) = &self.config.rtmp {
             if let Ok(Some(bitrate)) = nginx::get_rtmp_bitrate(&rtmp).await {
