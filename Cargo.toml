@@ -1,5 +1,5 @@
 [package]
-name = "liveu_stats_botv2"
+name = "liveu_stats_bot"
 version = "0.2.0"
 authors = ["Brian Spit <brian@mythenatic.com>"]
 edition = "2018"

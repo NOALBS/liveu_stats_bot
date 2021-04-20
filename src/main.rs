@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use liveu_stats_botv2::{config::Config, liveu::Liveu, twitch::Twitch};
+use liveu_stats_bot::{config::Config, liveu::Liveu, twitch::Twitch};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
         .get_inventories()
         .await
         .context("Error getting inventories")?;
-    let loc = liveu_stats_botv2::liveu::Liveu::get_boss_id_location(&inventories);
+    let loc = Liveu::get_boss_id_location(&inventories);
     let liveu_boss_id = inventories.units[loc].id.to_owned();
 
     println!("\nTwitch: Connecting...");
