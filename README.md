@@ -2,6 +2,10 @@
 
 Adds a chat command to check the current modems and bitrate on the liveu.
 
+## How do i run this?
+
+Just download the latest binary from [releases](https://github.com/715209/liveu_stats_bot/releases) and execute it.
+
 ## Config
 
 Edit `config.json` to your own settings.
@@ -60,5 +64,7 @@ If your LiveU is online, streaming and you're using NGINX you'll see this in cha
 
 `Please note: if one of your connections is offline it will NOT show up at all in the stats.`
 
-# Credits:
-### Cinnabarcorp: Initial Idea, Feedback, Use Case, and Q&A Testing.
+## Credits:
+[Cinnabarcorp (travelingwithgus)](https://twitch.tv/travelwithgus): Initial Idea, Feedback, Use Case, and Q&A Testing.
+
+[B3ck](https://twitch.tv/b3ck): Feedback and Q&A Testing.
