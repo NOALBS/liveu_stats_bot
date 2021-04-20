@@ -27,6 +27,12 @@ Edit `config.json` to your own settings.
         "application": "publish",
         "key": "live"
     }
+    "custom_port_names": {
+        "ethernet": "Ethernet",
+        "wifi": "WiFi",
+        "usb1": "USB1",
+        "usb2": "USB2"
+    }
 }
 ```
 
