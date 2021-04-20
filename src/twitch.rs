@@ -1,139 +1,135 @@
-use crate::config;
-use futures::StreamExt;
-use irc_parser::Message;
-use native_tls::TlsConnector;
-use thiserror::Error;
-use tokio::net::TcpStream;
-use tokio::prelude::*;
-use tokio::sync::mpsc;
-use tokio_tls;
-use tokio_util::codec::{FramedRead, LinesCodec};
-
-#[derive(Error, Debug)]
-pub enum TwitchError {
-    #[error("TCP error: {0}")]
-    TcpError(#[from] tokio::io::Error),
-
-    #[error("Channel send error: {0}")]
-    ChannelSendError(#[from] mpsc::error::SendError<String>),
-
-    #[error("Channel receive error: {0}")]
-    ChannelReceiveError(#[from] mpsc::error::RecvError),
-
-    #[error("Error getting secure connection: {0}")]
-    TlsError(#[from] native_tls::Error),
-}
+use crate::{
+    config,
+    error::Error,
+    liveu::{self, Liveu},
+    nginx,
+};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use twitch_irc::{
+    login::StaticLoginCredentials, message, ClientConfig, TCPTransport, TwitchIRCClient,
+};
 
 pub struct Twitch {
-    pub config: config::Twitch,
-    pub read: mpsc::Receiver<String>,
-    pub write: mpsc::Sender<String>,
+    client: TwitchIRCClient<TCPTransport, StaticLoginCredentials>,
+    liveu: Liveu,
+    liveu_boss_id: String,
+    config: config::Config,
+    timeout: Arc<AtomicBool>,
 }
 
 impl Twitch {
-    pub async fn connect(twitch_config: config::Twitch) -> Result<Twitch, TwitchError> {
-        let stream = TcpStream::connect("irc.chat.twitch.tv:6697").await?;
-        let cx = TlsConnector::builder().build()?;
-        let cx = tokio_tls::TlsConnector::from(cx);
-        let mut stream = cx.connect("irc.chat.twitch.tv", stream).await?;
+    pub fn run(
+        config: config::Config,
+        liveu: Liveu,
+        liveu_boss_id: String,
+    ) -> tokio::task::JoinHandle<()> {
+        let twitch_credentials = StaticLoginCredentials::new(
+            config.twitch.bot_username.to_lowercase(),
+            Some(config.twitch.bot_oauth.to_owned()),
+        );
+        let twitch_config = ClientConfig::new_simple(twitch_credentials);
+        let (mut incoming_messages, client) =
+            TwitchIRCClient::<TCPTransport, StaticLoginCredentials>::new(twitch_config);
 
-        stream
-            .write(b"CAP REQ :twitch.tv/tags twitch.tv/commands\r\n")
-            .await?;
-        stream
-            .write(format!("PASS {}\r\n", twitch_config.bot_oauth.to_lowercase()).as_bytes())
-            .await?;
-        stream
-            .write(format!("NICK {}\r\n", twitch_config.bot_username.to_lowercase()).as_bytes())
-            .await?;
-        stream
-            .write(format!("JOIN #{}\r\n", twitch_config.channel.to_lowercase()).as_bytes())
-            .await?;
-
-        let (r, mut w) = io::split(stream);
-
-        let (ws, mut wr) = mpsc::channel(100);
-        let (rs, rr) = mpsc::channel(100);
-
-        // Clone for use in spawned tasks
-        let mw = ws.clone();
-        let mut keep_alive = ws.clone();
-
-        let mut stream = FramedRead::new(r, LinesCodec::new());
-
-        let tw = Twitch {
-            config: twitch_config,
-            read: rr,
-            write: ws,
-        };
+        client.join(config.twitch.channel.to_lowercase());
 
         tokio::spawn(async move {
-            while let Some(result) = stream.next().await {
-                match result {
-                    Ok(line) => {
-                        let mut message_writer = mw.clone();
-                        let mut message_sender = rs.clone();
+            let t = Self {
+                client,
+                liveu,
+                liveu_boss_id,
+                config,
+                timeout: Arc::new(AtomicBool::new(false)),
+            };
 
-                        tokio::spawn(async move {
-                            if let Ok(msg) = Message::parse(&line) {
-                                match msg.command {
-                                    Some("PING") => {
-                                        if let Some(arr) = &msg.params {
-                                            if let Err(e) = message_writer
-                                                .send(format!("PONG :{}\r\n", arr[0]))
-                                                .await
-                                            {
-                                                println!(
-                                                    "Got an error trying to send PONG message\n{}",
-                                                    e
-                                                );
-                                            }
-                                        }
-                                    }
-                                    Some("PRIVMSG") => {
-                                        if let Some(params) = msg.params {
-                                            message_sender
-                                                .send(params[1].to_owned())
-                                                .await
-                                                .unwrap();
-                                        }
-                                    }
-                                    _ => (),
-                                }
-                            }
-                        });
-                    }
-                    Err(e) => println!("Got an error: {}", e),
-                }
+            while let Some(message) = incoming_messages.recv().await {
+                t.handle_chat(message).await;
             }
-        });
-
-        tokio::spawn(async move {
-            while let Some(msg) = wr.recv().await {
-                //println!("trying to send {}", msg);
-                w.write_all(msg.as_bytes()).await.unwrap();
-            }
-        });
-
-        // Keepalive
-        tokio::spawn(async move {
-            loop {
-                tokio::time::delay_for(std::time::Duration::from_secs(120)).await;
-                //println!("Sending PING message");
-                keep_alive
-                    .send("PING :tmi.twitch.tv\r\n".to_string())
-                    .await
-                    .unwrap();
-            }
-        });
-
-        Ok(tw)
+        })
     }
 
-    pub async fn send_message(&mut self, channel: &str, message: &str) -> Result<(), TwitchError> {
-        self.write
-            .send(format!("PRIVMSG #{} :{}\r\n", channel, message))
+    async fn handle_chat(&self, message: message::ServerMessage) {
+        let timeout = self.timeout.clone();
+        if timeout.load(Ordering::Acquire) {
+            return;
+        }
+
+        match message {
+            message::ServerMessage::Notice(msg) => {
+                if msg.message_text == "Login authentication failed" {
+                    panic!("Twitch authentication failed");
+                }
+            }
+            message::ServerMessage::Privmsg(msg) => {
+                let command = msg
+                    .message_text
+                    .split_ascii_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
+
+                if self.config.twitch.commands.contains(&command) {
+                    let cooldown = self.config.twitch.command_cooldown;
+
+                    tokio::spawn(async move {
+                        timeout.store(true, Ordering::Release);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(cooldown as u64)).await;
+                        timeout.store(false, Ordering::Release);
+                    });
+
+                    if let Ok(lu_msg) = self.generate_liveu_message().await {
+                        let _ = self.client.say(msg.channel_login, lu_msg).await;
+                    }
+                }
+            }
+            _ => {}
+        };
+    }
+
+    async fn generate_liveu_message(&self) -> Result<String, Error> {
+        let interfaces: Vec<liveu::Interface> = self
+            .liveu
+            .get_unit_custom_names(&self.liveu_boss_id)
             .await?;
-        Ok(())
+
+        if interfaces.is_empty() {
+            return Ok("LiveU Offline :(".to_string());
+        }
+
+        let mut message = String::new();
+        let mut total_bitrate = 0;
+
+        for (pos, interface) in interfaces.iter().enumerate() {
+            let separator = if pos == interfaces.len() - 1 {
+                " "
+            } else {
+                ", "
+            };
+
+            message = message
+                + &format!(
+                    "{}: {} Kbps{}",
+                    interface.port, interface.uplink_kbps, separator
+                );
+
+            total_bitrate += interface.uplink_kbps;
+        }
+
+        if total_bitrate == 0 {
+            return Ok("LiveU Online and Ready".to_string());
+        }
+
+        message += &format!("LRT: {} Kbps", total_bitrate);
+
+        if let Some(rtmp) = &self.config.rtmp {
+            if let Ok(Some(bitrate)) = nginx::get_rtmp_bitrate(&rtmp).await {
+                message += &format!(", RTMP: {} Kbps", bitrate);
+            };
+        }
+
+        Ok(message)
     }
 }

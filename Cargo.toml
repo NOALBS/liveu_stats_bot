@@ -1,25 +1,19 @@
 [package]
-name = "liveu_stats_bot"
-version = "0.1.0"
+name = "liveu_stats_botv2"
+version = "0.2.0"
 authors = ["Brian Spit <brian@mythenatic.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.10", features = ["json"]}
-serde_json = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-base64 = "0.12.0"
-uuid = { version = "0.8", features = ["v4"] }
-tokio = { version = "0.2", features = ["full"] }
-tokio-util = "0.3"
-thiserror = "1.0"
 anyhow = "1.0"
-read_input = "0.8.4"
-futures = "0.3"
-tokio-tls = "0.3.0"
-native-tls = "0.2"
-quick-xml = {version = "0.18", features = ["serialize"]}
-
-irc_parser = { git = "https://github.com/715209/irc_parser" }
+quick-xml = {version = "0.21", features = ["serialize"]}
+read_input = "0.8"
+reqwest = { version = "0.11", features = ["json"]}
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tokio = { version = "1.5", features = ["macros", "rt", "rt-multi-thread"] }
+twitch-irc = "2.2"
+uuid = { version = "0.8", features = ["v4"] }
