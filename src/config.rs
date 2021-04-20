@@ -35,6 +35,7 @@ pub struct Config {
     pub liveu: Liveu,
     pub twitch: Twitch,
     pub rtmp: Option<Rtmp>,
+    pub custom_port_names: Option<CustomUnitNames>,
 }
 
 impl Config {
@@ -78,7 +79,7 @@ impl Config {
         }
 
         let q: String = input()
-            .msg("Are you using nginx and would you like to display its bitrate as well (y/n): ")
+            .msg("\nAre you using nginx and would you like to display its bitrate as well (y/n): ")
             .add_test(|x: &String| x.to_lowercase() == "y" || x.to_lowercase() == "n")
             .err("Please enter y or n: ")
             .get();
@@ -93,10 +94,32 @@ impl Config {
             });
         }
 
+        let q: String = input()
+            .msg("\nWould you like to use a custom name for each port? (y/n): ")
+            .add_test(|x: &String| x.to_lowercase() == "y" || x.to_lowercase() == "n")
+            .err("Please enter y or n: ")
+            .get();
+
+        let mut custom_unit_names = None;
+
+        if q == "y" {
+            println!("Press enter to keep using the default value");
+
+            let mut un = CustomUnitNames::default();
+
+            un.ethernet = input().msg("Ethernet: ").default(un.ethernet).get();
+            un.wifi = input().msg("WiFi: ").default(un.wifi).get();
+            un.usb1 = input().msg("USB1: ").default(un.usb1).get();
+            un.usb2 = input().msg("USB2: ").default(un.usb2).get();
+
+            custom_unit_names = Some(un);
+        }
+
         let config = Config {
             liveu,
             twitch,
             rtmp,
+            custom_port_names: custom_unit_names,
         };
         fs::write(CONFIG_FILE_NAME, serde_json::to_string_pretty(&config)?)?;
 
@@ -111,5 +134,24 @@ impl Config {
         );
 
         Ok(config)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CustomUnitNames {
+    pub ethernet: String,
+    pub wifi: String,
+    pub usb1: String,
+    pub usb2: String,
+}
+
+impl Default for CustomUnitNames {
+    fn default() -> Self {
+        CustomUnitNames {
+            ethernet: "Ethernet".to_string(),
+            wifi: "WiFi".to_string(),
+            usb1: "USB1".to_string(),
+            usb2: "USB2".to_string(),
+        }
     }
 }

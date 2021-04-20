@@ -1,4 +1,7 @@
-use crate::{config::Liveu as Config_liveu, error::Error};
+use crate::{
+    config::{self, Liveu as Config_liveu},
+    error::Error,
+};
 use read_input::prelude::*;
 use reqwest::{
     header::{ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONTENT_TYPE},
@@ -198,30 +201,42 @@ impl Liveu {
         0
     }
 
-    pub async fn get_unit_custom_names(&self, boss_id: &str) -> Result<Vec<Interface>, Error> {
+    pub async fn get_unit_custom_names(
+        &self,
+        boss_id: &str,
+        custom_names: Option<config::CustomUnitNames>,
+    ) -> Result<Vec<Interface>, Error> {
+        let custom_names = custom_names.unwrap_or_default();
+
         Ok(self
             .get_unit(boss_id)
             .await?
             .into_iter()
             .filter(|x| x.connected)
-            .map(|mut x| {
-                match x.port.as_ref() {
-                    "eth0" => {
-                        x.port = "Ethernet".to_string();
-                    }
-                    "wlan0" => {
-                        x.port = "WiFi".to_string();
-                    }
-                    "2" => {
-                        x.port = "USB1".to_string();
-                    }
-                    "3" => {
-                        x.port = "USB2".to_string();
-                    }
-                    _ => {}
-                }
-                x
-            })
+            .map(|x| Self::change_interface_name_to_custom(x, &custom_names))
             .collect())
+    }
+
+    fn change_interface_name_to_custom(
+        mut interface: Interface,
+        custom_names: &config::CustomUnitNames,
+    ) -> Interface {
+        match interface.port.as_ref() {
+            "eth0" => {
+                interface.port = custom_names.ethernet.to_string();
+            }
+            "wlan0" => {
+                interface.port = custom_names.wifi.to_string();
+            }
+            "2" => {
+                interface.port = custom_names.usb1.to_string();
+            }
+            "3" => {
+                interface.port = custom_names.usb2.to_string();
+            }
+            _ => {}
+        }
+
+        interface
     }
 }

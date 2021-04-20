@@ -92,7 +92,7 @@ impl Twitch {
     async fn generate_liveu_message(&self) -> Result<String, Error> {
         let interfaces: Vec<liveu::Interface> = self
             .liveu
-            .get_unit_custom_names(&self.liveu_boss_id)
+            .get_unit_custom_names(&self.liveu_boss_id, self.config.custom_port_names.clone())
             .await?;
 
         if interfaces.is_empty() {
