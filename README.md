@@ -26,7 +26,7 @@ Edit `config.json` to your own settings.
         "stats": "http://localhost/stat",
         "application": "publish",
         "key": "live"
-    }
+    },
     "custom_port_names": {
         "ethernet": "Ethernet",
         "wifi": "WiFi",
