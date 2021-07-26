@@ -3,7 +3,7 @@ use read_input::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
-use crate::error;
+use crate::{error, liveu};
 
 const CONFIG_FILE_NAME: &str = "config.json";
 
@@ -11,16 +11,25 @@ const CONFIG_FILE_NAME: &str = "config.json";
 pub struct Liveu {
     pub email: String,
     pub password: String,
+    pub monitor: bool,
+    pub battery_notification: Vec<u8>,
+    pub id: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Twitch {
     pub bot_username: String,
     pub bot_oauth: String,
     pub channel: String,
     pub commands: Vec<String>,
+    pub battery_command: Vec<String>,
+    pub start_command: String,
+    pub stop_command: String,
+    pub restart_command: String,
+    pub admin_users: Option<Vec<String>>,
     pub command_cooldown: u16,
+    pub mod_only: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -30,7 +39,7 @@ pub struct Rtmp {
     pub key: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
     pub liveu: Liveu,
     pub twitch: Twitch,
@@ -49,12 +58,37 @@ impl Config {
     }
 
     /// Asks the user to enter settings and save it to disk
-    pub fn ask_for_settings() -> Result<Self, Error> {
+    pub async fn ask_for_settings() -> Result<Self, Error> {
         println!("Please enter your Liveu details below");
-        let liveu = Liveu {
+        let mut liveu = Liveu {
             email: input().msg("Email: ").get(),
             password: input().msg("Password: ").get(), // FIXME: Change password input?
+            monitor: input_to_bool(&input()
+            .msg("\nDo you want to receive automatic chat messages about\nthe status of your battery or modems (y/n): ")
+            .add_test(|x: &String| x.to_lowercase() == "y" || x.to_lowercase() == "n")
+            .err("Please enter y or n: ")
+            .get()),
+            id: None,
+            battery_notification: [99, 50, 10, 5, 1].to_vec(),
         };
+
+        let lauth = liveu::Liveu::authenticate(liveu.clone()).await?;
+        let inventories = lauth.get_inventories().await?;
+
+        if inventories.units.len() > 1 {
+            let option = input_to_bool(
+                &input()
+                    .msg("Do you want to save a default unit to use in the config (y/n): ")
+                    .add_test(|x: &String| x.to_lowercase() == "y" || x.to_lowercase() == "n")
+                    .err("Please enter y or n: ")
+                    .get(),
+            );
+
+            if option {
+                let loc = liveu::Liveu::get_boss_id_location(&inventories);
+                liveu.id = Some(inventories.units[loc].id.to_owned());
+            }
+        }
 
         println!("\nPlease enter your Twitch details below");
         let mut twitch = Twitch {
@@ -68,10 +102,26 @@ impl Config {
                 "!liveustats".to_string(),
                 "!lus".to_string(),
             ],
+            battery_command: vec![
+                "!battery".to_string(),
+                "!liveubattery".to_string(),
+                "!lub".to_string(),
+            ],
+            start_command: "!lustart".to_string(),
+            stop_command: "!lustop".to_string(),
+            restart_command: "!lurestart".to_string(),
+            admin_users: None,
             command_cooldown: input()
                 .msg("Command cooldown (seconds): ")
                 .err("Please enter a number")
                 .get(),
+            mod_only: input_to_bool(
+                &input()
+                    .msg("Only allow mods to access the commands (y/n): ")
+                    .add_test(|x: &String| x.to_lowercase() == "y" || x.to_lowercase() == "n")
+                    .err("Please enter y or n: ")
+                    .get(),
+            ),
         };
 
         if let Some(oauth) = twitch.bot_oauth.strip_prefix("oauth:") {
@@ -154,4 +204,13 @@ impl Default for CustomUnitNames {
             usb2: "USB2".to_string(),
         }
     }
+}
+
+/// Converts y or n to bool.
+fn input_to_bool(confirm: &str) -> bool {
+    if confirm == "y" {
+        return true;
+    }
+
+    false
 }

@@ -24,4 +24,10 @@ pub enum Error {
 
     #[error("No units found")]
     NoUnitsFound,
+
+    #[error("Status not available")]
+    StatusNotAvailable,
+
+    #[error("Not enough permissions to use command")]
+    NotEnoughPermissions,
 }
