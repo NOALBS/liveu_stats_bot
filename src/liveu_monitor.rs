@@ -97,7 +97,7 @@ impl Monitor {
         if !new_modems.is_empty() {
             let a = if new_modems.len() > 1 { "are" } else { "is" };
 
-            message += &format!("{} {} now connected.", new_modems.join(", "), a);
+            message += &format!("{} {} now connected", new_modems.join(", "), a);
         }
 
         if !removed_modems.is_empty() {
@@ -107,7 +107,7 @@ impl Monitor {
                 "has"
             };
 
-            message += &format!("{} {} disconnected.", removed_modems.join(", "), a);
+            message += &format!("{} {} disconnected", removed_modems.join(", "), a);
         }
 
         message
@@ -205,7 +205,7 @@ impl Monitor {
     ) {
         if current.percentage == percentage && prev.percentage > percentage {
             let message = format!(
-                "LiveU: Internal battery is at {}% and is {} charging.",
+                "LiveU: Internal battery is at {}% and is {} charging",
                 percentage,
                 if current.charging { "" } else { "not" }
             );

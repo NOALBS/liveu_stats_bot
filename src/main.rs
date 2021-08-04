@@ -45,6 +45,7 @@ async fn main() -> Result<()> {
             let modems = monitor.clone();
             tokio::spawn(async move { modems.monitor_modems().await });
         }
+
         if config.liveu.monitor.battery {
             println!("Liveu: monitoring battery");
             let battery = monitor;
