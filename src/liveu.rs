@@ -357,6 +357,12 @@ impl Liveu {
             "wlan0" => {
                 interface.port = custom_names.wifi.to_string();
             }
+            "0" => {
+                interface.port = custom_names.sim1.to_string();
+            }
+            "1" => {
+                interface.port = custom_names.sim2.to_string();
+            }
             "2" => {
                 interface.port = custom_names.usb1.to_string();
             }

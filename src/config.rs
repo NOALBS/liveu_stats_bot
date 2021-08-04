@@ -215,6 +215,8 @@ impl Config {
             un.wifi = input().msg("WiFi: ").default(un.wifi).get();
             un.usb1 = input().msg("USB1: ").default(un.usb1).get();
             un.usb2 = input().msg("USB2: ").default(un.usb2).get();
+            un.sim1 = input().msg("SIM1: ").default(un.sim1).get();
+            un.sim2 = input().msg("SIM2: ").default(un.sim2).get();
 
             custom_unit_names = Some(un);
         }
@@ -251,6 +253,8 @@ pub struct CustomUnitNames {
     pub wifi: String,
     pub usb1: String,
     pub usb2: String,
+    pub sim1: String,
+    pub sim2: String,
 }
 
 impl Default for CustomUnitNames {
@@ -260,6 +264,8 @@ impl Default for CustomUnitNames {
             wifi: "WiFi".to_string(),
             usb1: "USB1".to_string(),
             usb2: "USB2".to_string(),
+            sim1: "SIM1".to_string(),
+            sim2: "SIM2".to_string(),
         }
     }
 }
