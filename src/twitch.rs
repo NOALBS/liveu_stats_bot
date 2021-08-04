@@ -217,7 +217,22 @@ impl Twitch {
         let mut total_bitrate = 0;
 
         for interface in interfaces.iter() {
-            message = message + &format!("{}: {} Kbps, ", interface.port, interface.uplink_kbps);
+            message = message
+                + &format!(
+                    "{}:({}) {} Kbps{}, ",
+                    interface.port,
+                    if !interface.technology.is_empty() {
+                        " ".to_owned() + &interface.technology
+                    } else {
+                        "".to_string()
+                    },
+                    interface.uplink_kbps,
+                    if interface.is_currently_roaming {
+                        " roaming"
+                    } else {
+                        ""
+                    }
+                );
             total_bitrate += interface.uplink_kbps;
         }
 
@@ -259,15 +274,27 @@ impl Twitch {
             }
         };
 
+        let charging = {
+            if battery.charging {
+                "charging".to_string()
+            } else if battery.percentage == 100 {
+                let mut s = "fully charged".to_string();
+
+                if battery.connected {
+                    s += ", connected"
+                }
+
+                s
+            } else if battery.percentage < 100 && !battery.charging && !battery.discharging {
+                "too hot to charge".to_string()
+            } else {
+                "not charging".to_string()
+            }
+        };
+
         let message = format!(
             "LiveU Internal Battery: {}% {} {}",
-            battery.percentage,
-            if battery.charging {
-                "Charging"
-            } else {
-                "Not charging"
-            },
-            estimated_battery_time
+            battery.percentage, charging, estimated_battery_time
         );
 
         Ok(message)
