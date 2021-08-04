@@ -31,17 +31,30 @@ impl Twitch {
         TwitchIRCClient<TCPTransport, StaticLoginCredentials>,
         tokio::task::JoinHandle<()>,
     ) {
-        let twitch_credentials = StaticLoginCredentials::new(
-            config.twitch.bot_username.to_lowercase(),
-            Some(config.twitch.bot_oauth.to_owned()),
-        );
+        let config::Twitch {
+            bot_username,
+            bot_oauth,
+            channel,
+            mod_only,
+            ..
+        } = &config.twitch;
+
+        let username = bot_username.to_lowercase();
+        let channel = channel.to_lowercase();
+        let mut oauth = bot_oauth.to_owned();
+
+        if let Some(strip_oauth) = oauth.strip_prefix("oauth:") {
+            oauth = strip_oauth.to_string();
+        }
+
+        let twitch_credentials = StaticLoginCredentials::new(username, Some(oauth));
         let twitch_config = ClientConfig::new_simple(twitch_credentials);
         let (mut incoming_messages, client) =
             TwitchIRCClient::<TCPTransport, StaticLoginCredentials>::new(twitch_config);
 
-        client.join(config.twitch.channel.to_lowercase());
-        let mod_only = config.twitch.mod_only.to_owned();
+        client.join(channel);
 
+        let mod_only = mod_only.to_owned();
         let client_clone = client.clone();
         let join_handler = tokio::spawn(async move {
             let t = Self {
@@ -111,7 +124,7 @@ impl Twitch {
                     return;
                 }
 
-                let cooldown = self.config.twitch.command_cooldown;
+                let cooldown = self.config.commands.command_cooldown;
 
                 tokio::spawn(async move {
                     timeout.store(true, Ordering::Release);
@@ -158,23 +171,32 @@ impl Twitch {
     }
 
     fn get_command(&self, command: String) -> Command {
-        if self.config.twitch.commands.contains(&command) {
+        let config::Commands {
+            stats,
+            battery,
+            start,
+            stop,
+            restart,
+            ..
+        } = &self.config.commands;
+
+        if stats.contains(&command) {
             return Command::Stats;
         }
 
-        if self.config.twitch.battery_command.contains(&command) {
+        if battery.contains(&command) {
             return Command::Battery;
         }
 
-        if self.config.twitch.start_command == command {
+        if start == &command {
             return Command::Start;
         }
 
-        if self.config.twitch.stop_command == command {
+        if stop == &command {
             return Command::Stop;
         }
 
-        if self.config.twitch.restart_command == command {
+        if restart == &command {
             return Command::Restart;
         }
 

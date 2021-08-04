@@ -315,12 +315,13 @@ impl Liveu {
             }
 
             let inp = input()
-                .msg("\nPlease enter which one you want to use: ")
+                .msg("\nPlease enter which one you want to use (1): ")
                 .inside_err(
                     1..=size,
                     format!("Please enter a number between 1 and {}: ", size),
                 )
                 .err("That does not look like a number. Please try again:")
+                .default(1)
                 .get();
 
             return inp - 1;

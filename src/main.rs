@@ -32,15 +32,24 @@ async fn main() -> Result<()> {
         Twitch::run(config.clone(), liveu.clone(), liveu_boss_id.to_owned());
     println!("Twitch: Connected");
 
-    if config.liveu.monitor {
-        println!("Liveu: Running liveu monitor");
+    {
         let monitor = Monitor {
             client: twitch_client.clone(),
             config: config.clone(),
             liveu: liveu.clone(),
             boss_id: liveu_boss_id.to_owned(),
         };
-        monitor.run();
+
+        if config.liveu.monitor.modems {
+            println!("Liveu: monitoring modems");
+            let modems = monitor.clone();
+            tokio::spawn(async move { modems.monitor_modems().await });
+        }
+        if config.liveu.monitor.battery {
+            println!("Liveu: monitoring battery");
+            let battery = monitor;
+            tokio::spawn(async move { battery.monitor_battery().await });
+        }
     }
 
     twitch_join_handle.await?;

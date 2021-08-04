@@ -188,7 +188,7 @@ impl Monitor {
                     .await;
             }
 
-            for percentage in &self.config.liveu.battery_notification {
+            for percentage in &self.config.liveu.monitor.battery_notification {
                 self.battery_percentage_message(*percentage, &battery, &prev)
                     .await;
             }
