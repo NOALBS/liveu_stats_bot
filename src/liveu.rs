@@ -145,7 +145,6 @@ impl Liveu {
                 *token = Self::get_access_token(&self.config).await?;
             }
 
-            dbg!("Getting new token");
             res = self
                 .try_send_request(method.clone(), &url, payload.clone())
                 .await?;
