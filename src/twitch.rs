@@ -219,14 +219,14 @@ impl Twitch {
         for interface in interfaces.iter() {
             message = message
                 + &format!(
-                    "{}:({}) {} Kbps{}, ",
+                    "{}: {} Kbps{}{}, ",
                     interface.port,
+                    interface.uplink_kbps,
                     if !interface.technology.is_empty() {
-                        " ".to_owned() + &interface.technology
+                        format!(" ({})", &interface.technology)
                     } else {
                         "".to_string()
                     },
-                    interface.uplink_kbps,
                     if interface.is_currently_roaming {
                         " roaming"
                     } else {
