@@ -37,7 +37,7 @@ pub struct Twitch {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Commands {
-    pub command_cooldown: u16,
+    pub cooldown: u16,
     pub stats: Vec<String>,
     pub battery: Vec<String>,
     pub start: String,
@@ -53,6 +53,7 @@ pub struct Rtmp {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Config {
     pub liveu: Liveu,
     pub twitch: Twitch,
@@ -159,7 +160,7 @@ impl Config {
         };
 
         let commands = Commands {
-            command_cooldown: input()
+            cooldown: input()
                 .msg("Command cooldown (default 5 seconds): ")
                 .err("Please enter a number")
                 .default(5)

@@ -124,7 +124,7 @@ impl Twitch {
                     return;
                 }
 
-                let cooldown = self.config.commands.command_cooldown;
+                let cooldown = self.config.commands.cooldown;
 
                 tokio::spawn(async move {
                     timeout.store(true, Ordering::Release);
