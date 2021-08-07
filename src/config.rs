@@ -71,7 +71,6 @@ impl Config {
         let mut config = serde_json::from_str::<Config>(&file)?;
         Self::lowercase_settings(&mut config);
 
-        println!("{:#?}", config);
         Ok(config)
     }
 
