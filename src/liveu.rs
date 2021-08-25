@@ -5,11 +5,11 @@ use crate::{
 use read_input::prelude::*;
 use reqwest::{
     header::{ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONTENT_TYPE},
-    StatusCode,
+    Method, StatusCode,
 };
 use serde::Deserialize;
 use serde_json::Value;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -59,6 +59,8 @@ pub struct Interface {
 pub struct Unit {
     pub id: String,
     pub reg_code: String,
+    pub status: String,
+    pub name: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -66,6 +68,24 @@ pub struct Inventories {
     pub units: Vec<Unit>,
 }
 
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub struct Battery {
+    pub connected: bool,
+    pub percentage: u8,
+    pub run_time_to_empty: u32,
+    pub discharging: bool,
+    pub charging: bool,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Video {
+    pub resolution: Option<String>,
+    pub bitrate: Option<u32>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Liveu {
     access_token: Arc<Mutex<String>>,
     config: Config_liveu,
@@ -109,8 +129,15 @@ impl Liveu {
     }
 
     /// Sends the specified request. Gets a new token if unauthorized.
-    pub async fn send_request(&self, url: &str) -> Result<reqwest::Response, Error> {
-        let mut res = self.try_send_request(&url).await?;
+    pub async fn send_request(
+        &self,
+        method: Method,
+        url: &str,
+        payload: Option<HashMap<&str, &str>>,
+    ) -> Result<reqwest::Response, Error> {
+        let mut res = self
+            .try_send_request(method.clone(), &url, payload.clone())
+            .await?;
 
         if res.status() == 401 {
             {
@@ -118,32 +145,42 @@ impl Liveu {
                 *token = Self::get_access_token(&self.config).await?;
             }
 
-            dbg!("Getting new token");
-            res = self.try_send_request(&url).await?;
+            res = self
+                .try_send_request(method.clone(), &url, payload.clone())
+                .await?;
         }
 
         Ok(res)
     }
 
-    pub async fn try_send_request(&self, url: &str) -> Result<reqwest::Response, reqwest::Error> {
+    pub async fn try_send_request(
+        &self,
+        method: Method,
+        url: &str,
+        payload: Option<HashMap<&str, &str>>,
+    ) -> Result<reqwest::Response, reqwest::Error> {
         let client = reqwest::Client::new();
 
-        client
-            .get(url)
+        let mut client = client
+            .request(method, url)
             .header(ACCEPT, "application/json, text/plain, */*")
             .header(ACCEPT_LANGUAGE, "en-US,en;q=0.9")
             .header(
                 AUTHORIZATION,
                 format!("Bearer {}", { &self.access_token.lock().await }),
             )
-            .header("application-id", APPLICATION_ID)
-            .send()
-            .await
+            .header("application-id", APPLICATION_ID);
+
+        if let Some(data) = payload {
+            client = client.json(&data);
+        }
+
+        client.send().await
     }
 
     pub async fn get_inventories(&self) -> Result<Inventories, Error> {
         let res = self
-            .send_request(&format!("{}/inventories", LIVEU_API))
+            .send_request(Method::GET, &format!("{}/inventories", LIVEU_API), None)
             .await?;
 
         if res.status().is_client_error() {
@@ -156,18 +193,108 @@ impl Liveu {
         )?)
     }
 
-    pub async fn get_unit(&self, boss_id: &str) -> Result<Vec<Interface>, Error> {
+    pub async fn get_interfaces(&self, boss_id: &str) -> Result<Vec<Interface>, Error> {
         let res = self
-            .send_request(&format!(
-                "{}/units/{}/status/interfaces",
-                LIVEU_API, &boss_id
-            ))
+            .send_request(
+                Method::GET,
+                &format!("{}/units/{}/status/interfaces", LIVEU_API, &boss_id),
+                None,
+            )
             .await?;
 
         match res.status() {
             StatusCode::OK => Ok(res.json().await?),
             StatusCode::NO_CONTENT => Ok(vec![]),
             _ => Err(Error::NoUnitsFound),
+        }
+    }
+
+    pub async fn get_battery(&self, boss_id: &str) -> Result<Battery, Error> {
+        let res = self
+            .send_request(
+                Method::GET,
+                &format!("{}/units/{}/status/battery", LIVEU_API, &boss_id),
+                None,
+            )
+            .await?;
+
+        match res.status() {
+            StatusCode::OK => Ok(res.json().await?),
+            _ => Err(Error::StatusNotAvailable),
+        }
+    }
+
+    pub async fn get_video(&self, boss_id: &str) -> Result<Video, Error> {
+        let res = self
+            .send_request(
+                Method::GET,
+                &format!("{}/units/{}/status/video", LIVEU_API, &boss_id),
+                None,
+            )
+            .await?;
+
+        match res.status() {
+            StatusCode::OK => Ok(res.json().await?),
+            _ => Err(Error::StatusNotAvailable),
+        }
+    }
+
+    pub async fn is_idle(&self, boss_id: &str) -> bool {
+        let video = match self.get_video(&boss_id).await {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+
+        if video.resolution.is_some() && video.bitrate.is_none() {
+            return true;
+        }
+
+        false
+    }
+
+    pub async fn is_streaming(&self, boss_id: &str) -> bool {
+        let video = match self.get_video(&boss_id).await {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+
+        if video.bitrate.is_some() {
+            return true;
+        }
+
+        false
+    }
+
+    pub async fn start_stream(&self, boss_id: &str) -> Result<(), Error> {
+        let mut map = HashMap::new();
+        map.insert("unit_id", boss_id);
+
+        let res = self
+            .send_request(
+                Method::POST,
+                &format!("{}/units/{}/stream", LIVEU_API, &boss_id),
+                Some(map),
+            )
+            .await?;
+
+        match res.status() {
+            StatusCode::CREATED => Ok(()),
+            _ => Err(Error::StatusNotAvailable),
+        }
+    }
+
+    pub async fn stop_stream(&self, boss_id: &str) -> Result<(), Error> {
+        let res = self
+            .send_request(
+                Method::DELETE,
+                &format!("{}/units/{}/stream", LIVEU_API, &boss_id),
+                None,
+            )
+            .await?;
+
+        match res.status() {
+            StatusCode::NO_CONTENT => Ok(()),
+            _ => Err(Error::StatusNotAvailable),
         }
     }
 
@@ -183,16 +310,17 @@ impl Liveu {
             println!("Found {} units!\n", size);
 
             for (pos, unit) in inventories.units.iter().enumerate() {
-                println!("({}) {}", pos + 1, unit.reg_code);
+                println!("({}) {}", pos + 1, unit.name);
             }
 
             let inp = input()
-                .msg("\nPlease enter which one you want to use: ")
+                .msg("\nPlease enter which one you want to use (1): ")
                 .inside_err(
                     1..=size,
                     format!("Please enter a number between 1 and {}: ", size),
                 )
                 .err("That does not look like a number. Please try again:")
+                .default(1)
                 .get();
 
             return inp - 1;
@@ -209,7 +337,7 @@ impl Liveu {
         let custom_names = custom_names.unwrap_or_default();
 
         Ok(self
-            .get_unit(boss_id)
+            .get_interfaces(boss_id)
             .await?
             .into_iter()
             .filter(|x| x.connected)
@@ -227,6 +355,12 @@ impl Liveu {
             }
             "wlan0" => {
                 interface.port = custom_names.wifi.to_string();
+            }
+            "0" => {
+                interface.port = custom_names.sim1.to_string();
+            }
+            "1" => {
+                interface.port = custom_names.sim2.to_string();
             }
             "2" => {
                 interface.port = custom_names.usb1.to_string();
