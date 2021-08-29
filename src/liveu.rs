@@ -49,7 +49,7 @@ pub struct Interface {
     pub technology: String,
     pub up_signal_quality: u32,
     pub down_signal_quality: u32,
-    pub active_sim: String,
+    pub active_sim: Option<String>,
     pub is_currently_roaming: bool,
     pub kbps: u32,
     pub signal_quality: u32,
