@@ -390,7 +390,7 @@ checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
 
 [[package]]
 name = "liveu_stats_bot"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "quick-xml",
