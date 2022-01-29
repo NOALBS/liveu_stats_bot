@@ -9,13 +9,16 @@ use std::sync::{
     Arc,
 };
 use twitch_irc::{
-    login::StaticLoginCredentials, message, ClientConfig, TCPTransport, TwitchIRCClient,
+    login::StaticLoginCredentials,
+    message,
+    transport::tcp::{TCPTransport, TLS},
+    ClientConfig, TwitchIRCClient,
 };
 
 const OFFLINE_MSG: &str = "LiveU Offline :(";
 
 pub struct Twitch {
-    client: TwitchIRCClient<TCPTransport, StaticLoginCredentials>,
+    client: TwitchIRCClient<TCPTransport<TLS>, StaticLoginCredentials>,
     liveu: Liveu,
     liveu_boss_id: String,
     config: config::Config,
@@ -28,7 +31,7 @@ impl Twitch {
         liveu: Liveu,
         liveu_boss_id: String,
     ) -> (
-        TwitchIRCClient<TCPTransport, StaticLoginCredentials>,
+        TwitchIRCClient<TCPTransport<TLS>, StaticLoginCredentials>,
         tokio::task::JoinHandle<()>,
     ) {
         let config::Twitch {
@@ -50,7 +53,7 @@ impl Twitch {
         let twitch_credentials = StaticLoginCredentials::new(username, Some(oauth));
         let twitch_config = ClientConfig::new_simple(twitch_credentials);
         let (mut incoming_messages, client) =
-            TwitchIRCClient::<TCPTransport, StaticLoginCredentials>::new(twitch_config);
+            TwitchIRCClient::<TCPTransport<TLS>, StaticLoginCredentials>::new(twitch_config);
 
         client.join(channel);
 
@@ -243,7 +246,7 @@ impl Twitch {
         message += &format!("Total LRT: {} Kbps", total_bitrate);
 
         if let Some(rtmp) = &self.config.rtmp {
-            if let Ok(Some(bitrate)) = nginx::get_rtmp_bitrate(&rtmp).await {
+            if let Ok(Some(bitrate)) = nginx::get_rtmp_bitrate(rtmp).await {
                 message += &format!(", RTMP: {} Kbps", bitrate);
             };
         }
@@ -388,7 +391,7 @@ enum Command {
 }
 
 struct DataUsedInThread {
-    chat: TwitchIRCClient<TCPTransport, StaticLoginCredentials>,
+    chat: TwitchIRCClient<TCPTransport<TLS>, StaticLoginCredentials>,
     liveu: Liveu,
     boss_id: String,
     channel: String,

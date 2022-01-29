@@ -1,10 +1,14 @@
-use twitch_irc::{login, TCPTransport, TwitchIRCClient};
+use twitch_irc::{
+    login,
+    transport::tcp::{TCPTransport, TLS},
+    TwitchIRCClient,
+};
 
 use crate::{config, liveu};
 
 #[derive(Debug, Clone)]
 pub struct Monitor {
-    pub client: TwitchIRCClient<TCPTransport, login::StaticLoginCredentials>,
+    pub client: TwitchIRCClient<TCPTransport<TLS>, login::StaticLoginCredentials>,
     pub config: config::Config,
     pub liveu: liveu::Liveu,
     pub boss_id: String,
@@ -62,7 +66,7 @@ impl Monitor {
             // check diff between current and prev
             let mut removed_modems = Vec::new();
             for modem in current_modems.iter() {
-                if !current.contains(&modem) {
+                if !current.contains(modem) {
                     // println!("Removed modem {}", modem);
                     removed_modems.push(modem.to_owned());
                 }

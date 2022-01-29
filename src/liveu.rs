@@ -136,7 +136,7 @@ impl Liveu {
         payload: Option<HashMap<&str, &str>>,
     ) -> Result<reqwest::Response, Error> {
         let mut res = self
-            .try_send_request(method.clone(), &url, payload.clone())
+            .try_send_request(method.clone(), url, payload.clone())
             .await?;
 
         if res.status() == 401 {
@@ -146,7 +146,7 @@ impl Liveu {
             }
 
             res = self
-                .try_send_request(method.clone(), &url, payload.clone())
+                .try_send_request(method.clone(), url, payload.clone())
                 .await?;
         }
 
@@ -240,7 +240,7 @@ impl Liveu {
     }
 
     pub async fn is_idle(&self, boss_id: &str) -> bool {
-        let video = match self.get_video(&boss_id).await {
+        let video = match self.get_video(boss_id).await {
             Ok(v) => v,
             Err(_) => return false,
         };
@@ -253,7 +253,7 @@ impl Liveu {
     }
 
     pub async fn is_streaming(&self, boss_id: &str) -> bool {
-        let video = match self.get_video(&boss_id).await {
+        let video = match self.get_video(boss_id).await {
             Ok(v) => v,
             Err(_) => return false,
         };
