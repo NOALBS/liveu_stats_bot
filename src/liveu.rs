@@ -7,7 +7,7 @@ use reqwest::{
     header::{ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONTENT_TYPE},
     Method, StatusCode,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 const APPLICATION_ID: &str = "SlZ3SHqiqtYJRkF0zO";
 const LIVEU_API: &str = "https://lu-central.liveu.tv/luc/luc-core-web/rest/v0";
+const LIVEU_API_V2: &str = "https://lu-central.liveu.tv/luc/luc-core-web/rest/v2";
 
 #[derive(Deserialize)]
 struct Res {
@@ -85,6 +86,18 @@ pub struct Video {
     pub bitrate: Option<u32>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DelayReq {
+    pub unit: Delay,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Delay {
+    pub delay: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct Liveu {
     access_token: Arc<Mutex<String>>,
@@ -129,11 +142,11 @@ impl Liveu {
     }
 
     /// Sends the specified request. Gets a new token if unauthorized.
-    pub async fn send_request(
+    pub async fn send_request<T: Serialize + Clone>(
         &self,
         method: Method,
         url: &str,
-        payload: Option<HashMap<&str, &str>>,
+        payload: Option<T>,
     ) -> Result<reqwest::Response, Error> {
         let mut res = self
             .try_send_request(method.clone(), url, payload.clone())
@@ -153,11 +166,11 @@ impl Liveu {
         Ok(res)
     }
 
-    pub async fn try_send_request(
+    pub async fn try_send_request<T: Serialize>(
         &self,
         method: Method,
         url: &str,
-        payload: Option<HashMap<&str, &str>>,
+        payload: Option<T>,
     ) -> Result<reqwest::Response, reqwest::Error> {
         let client = reqwest::Client::new();
 
@@ -180,7 +193,11 @@ impl Liveu {
 
     pub async fn get_inventories(&self) -> Result<Inventories, Error> {
         let res = self
-            .send_request(Method::GET, &format!("{}/inventories", LIVEU_API), None)
+            .send_request(
+                Method::GET,
+                &format!("{}/inventories", LIVEU_API),
+                None::<()>,
+            )
             .await?;
 
         if res.status().is_client_error() {
@@ -198,7 +215,7 @@ impl Liveu {
             .send_request(
                 Method::GET,
                 &format!("{}/units/{}/status/interfaces", LIVEU_API, &boss_id),
-                None,
+                None::<()>,
             )
             .await?;
 
@@ -214,7 +231,7 @@ impl Liveu {
             .send_request(
                 Method::GET,
                 &format!("{}/units/{}/status/battery", LIVEU_API, &boss_id),
-                None,
+                None::<()>,
             )
             .await?;
 
@@ -229,7 +246,7 @@ impl Liveu {
             .send_request(
                 Method::GET,
                 &format!("{}/units/{}/status/video", LIVEU_API, &boss_id),
-                None,
+                None::<()>,
             )
             .await?;
 
@@ -288,7 +305,60 @@ impl Liveu {
             .send_request(
                 Method::DELETE,
                 &format!("{}/units/{}/stream", LIVEU_API, &boss_id),
-                None,
+                None::<()>,
+            )
+            .await?;
+
+        match res.status() {
+            StatusCode::NO_CONTENT => Ok(()),
+            _ => Err(Error::StatusNotAvailable),
+        }
+    }
+
+    pub async fn reboot_unit(&self, boss_id: &str) -> Result<(), Error> {
+        let res = self
+            .send_request(
+                Method::POST,
+                &format!("{}/units/{}/reboot", LIVEU_API_V2, &boss_id),
+                None::<()>,
+            )
+            .await?;
+
+        match res.status() {
+            StatusCode::NO_CONTENT => Ok(()),
+            _ => Err(Error::StatusNotAvailable),
+        }
+    }
+
+    pub async fn get_delay(&self, boss_id: &str) -> Result<Delay, Error> {
+        let res = self
+            .send_request(
+                Method::GET,
+                &format!("{}/units/{}?fields=delay", LIVEU_API, &boss_id),
+                None::<()>,
+            )
+            .await?;
+
+        match res.status() {
+            StatusCode::OK => {
+                let value: serde_json::Value = res.json().await?;
+                let delay = value["data"]["unit"]["delay"]
+                    .as_u64()
+                    .ok_or(Error::StatusNotAvailable)?;
+                Ok(Delay { delay })
+            }
+            _ => Err(Error::StatusNotAvailable),
+        }
+    }
+
+    pub async fn set_delay(&self, boss_id: &str, delay: u64) -> Result<(), Error> {
+        let res = self
+            .send_request(
+                Method::PUT,
+                &format!("{}/units/{}/delay", LIVEU_API, &boss_id),
+                Some(DelayReq {
+                    unit: Delay { delay },
+                }),
             )
             .await?;
 

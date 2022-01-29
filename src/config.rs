@@ -43,6 +43,8 @@ pub struct Commands {
     pub start: String,
     pub stop: String,
     pub restart: String,
+    pub reboot: String,
+    pub delay: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -178,6 +180,8 @@ impl Config {
             start: "!lustart".to_string(),
             stop: "!lustop".to_string(),
             restart: "!lurestart".to_string(),
+            reboot: "!lureboot".to_string(),
+            delay: "!ludelay".to_string(),
         };
 
         let q: String = input()

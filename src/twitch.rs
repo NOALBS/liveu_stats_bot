@@ -135,34 +135,15 @@ impl Twitch {
                     timeout.store(false, Ordering::Release);
                 });
 
-                let res = match command {
-                    Command::Stats => self.generate_liveu_modems_message().await,
-                    Command::Battery => self.generate_liveu_battery_message().await,
-                    Command::Start => {
-                        if is_owner || user_has_permission {
-                            self.generate_liveu_start_message(msg.channel_login.to_owned())
-                                .await
-                        } else {
-                            Err(Error::NotEnoughPermissions)
-                        }
+                let res = if command == Command::Stats || command == Command::Battery {
+                    self.handle_non_permission_commands(command).await
+                } else {
+                    if !(is_owner || user_has_permission) {
+                        return;
                     }
-                    Command::Stop => {
-                        if is_owner || user_has_permission {
-                            self.generate_liveu_stop_message(msg.channel_login.to_owned())
-                                .await
-                        } else {
-                            Err(Error::NotEnoughPermissions)
-                        }
-                    }
-                    Command::Restart => {
-                        if is_owner || user_has_permission {
-                            self.generate_liveu_restart_message(msg.channel_login.to_owned())
-                                .await
-                        } else {
-                            Err(Error::NotEnoughPermissions)
-                        }
-                    }
-                    _ => unreachable!(),
+
+                    self.handle_permission_commands(command, msg.channel_login.to_owned())
+                        .await
                 };
 
                 if let Ok(res) = res {
@@ -173,6 +154,30 @@ impl Twitch {
         };
     }
 
+    async fn handle_non_permission_commands(&self, command: Command) -> Result<String, Error> {
+        match command {
+            Command::Stats => self.generate_liveu_modems_message().await,
+            Command::Battery => self.generate_liveu_battery_message().await,
+            _ => unreachable!(),
+        }
+    }
+
+    async fn handle_permission_commands(
+        &self,
+        command: Command,
+        channel: String,
+    ) -> Result<String, Error> {
+        match command {
+            Command::Start => self.generate_liveu_start_message(channel).await,
+            Command::Stop => self.generate_liveu_stop_message(channel).await,
+            Command::Restart => self.generate_liveu_restart_message(channel).await,
+            Command::Reboot => self.generate_liveu_reboot_message(channel).await,
+            Command::Delay => self.toggle_delay(channel).await,
+            _ => unreachable!(),
+        }
+    }
+
+    // TODO: This needs a refactor
     fn get_command(&self, command: String) -> Command {
         let config::Commands {
             stats,
@@ -180,6 +185,8 @@ impl Twitch {
             start,
             stop,
             restart,
+            reboot,
+            delay,
             ..
         } = &self.config.commands;
 
@@ -201,6 +208,14 @@ impl Twitch {
 
         if restart == &command {
             return Command::Restart;
+        }
+
+        if reboot == &command {
+            return Command::Reboot;
+        }
+
+        if delay == &command {
+            return Command::Delay;
         }
 
         Command::Unknown
@@ -372,11 +387,75 @@ impl Twitch {
         let msg = "LiveU stream restarting".to_string();
         let _ = self.client.say(channel.to_owned(), msg).await;
 
-        let _ = self.generate_liveu_stop_message(channel.to_owned()).await;
+        self.generate_liveu_stop_message(channel.to_owned()).await?;
         tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
-        let _ = self.generate_liveu_start_message(channel.to_owned()).await;
+        self.generate_liveu_start_message(channel.to_owned())
+            .await?;
 
         Ok(String::new())
+    }
+
+    async fn generate_liveu_reboot_message(&self, channel: String) -> Result<String, Error> {
+        let is_streaming = self.liveu.is_streaming(&self.liveu_boss_id).await;
+
+        let msg = "LiveU Rebooting, please wait approximately 2-3 minutes".to_string();
+        let _ = self.client.say(channel.to_owned(), msg).await;
+
+        if is_streaming {
+            self.generate_liveu_stop_message(channel.to_owned()).await?;
+            tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+        }
+
+        self.liveu.reboot_unit(&self.liveu_boss_id).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+
+        let mut attempts = 0;
+        let max_attempts = 20;
+
+        while !self.liveu.is_idle(&self.liveu_boss_id).await && attempts != max_attempts {
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            attempts += 1;
+        }
+
+        if attempts == max_attempts {
+            return Ok("LiveU took too long to reboot".to_string());
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+        if is_streaming {
+            self.generate_liveu_start_message(channel.to_owned())
+                .await?;
+            return Ok(String::new());
+        }
+
+        Ok("LiveU rebooted successfully".to_string())
+    }
+
+    async fn toggle_delay(&self, channel: String) -> Result<String, Error> {
+        let is_streaming = self.liveu.is_streaming(&self.liveu_boss_id).await;
+
+        if is_streaming {
+            self.generate_liveu_stop_message(channel.to_owned()).await?;
+            tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+        }
+
+        let current_delay = self.liveu.get_delay(&self.liveu_boss_id).await?;
+        let delay = if current_delay.delay == 1000 {
+            (5000, "LiveU high resiliency mode")
+        } else {
+            (1000, "LiveU low delay mode")
+        };
+
+        self.liveu.set_delay(&self.liveu_boss_id, delay.0).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        if is_streaming {
+            self.generate_liveu_start_message(channel.to_owned())
+                .await?;
+        }
+
+        Ok(delay.1.to_string())
     }
 }
 
@@ -387,6 +466,8 @@ enum Command {
     Start,
     Stop,
     Restart,
+    Reboot,
+    Delay,
     Unknown,
 }
 
