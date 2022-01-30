@@ -41,7 +41,9 @@ This config will be automatically generated upon running the binary and saved as
         "battery": ["!battery", "!liveubattery", "!lub"],
         "start": "!lustart",
         "stop": "!lustop",
-        "restart": "!lurestart"
+        "restart": "!lurestart",
+        "reboot": "!lureboot",
+        "delay": "!ludelay"
     },
     "rtmp": {
         "url": "http://localhost/stat",
@@ -74,13 +76,15 @@ You can remove these settings from the config if you don't want them or replace 
 
 After running the app successfully you can use the following default commands in your chat:
 
-| Name    | Default command | Description                                    |
-| ------- | --------------- | ---------------------------------------------- |
-| stats   | !lus            | Shows the current connected modems and bitrate |
-| battery | !lub            | Shows the current battery charge percentage    |
-| start   | !lustart        | Starts the stream (not the unit)               |
-| stop    | !lustop         | Stops the stream                               |
-| restart | !lurestart      | Restarts the stream                            |
+| Name    | Default command | Description                                        |
+| ------- | --------------- | -------------------------------------------------- |
+| stats   | !lus            | Shows the current connected modems and bitrate     |
+| battery | !lub            | Shows the current battery charge percentage        |
+| start   | !lustart        | Starts the stream (not the unit)                   |
+| stop    | !lustop         | Stops the stream                                   |
+| restart | !lurestart      | Restarts the stream                                |
+| reboot  | !lureboot       | Reboots the unit                                   |
+| delay   | !ludelay        | Toggles between low delay and high resiliency mode |
 
 You can add, delete or change the commands to whatever you want in `config.json` under the `commands` section.
 
