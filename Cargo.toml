@@ -1,6 +1,6 @@
 [package]
 name = "liveu_stats_bot"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Brian Spit <brian@715209.net>"]
 edition = "2021"
 
