@@ -37,7 +37,10 @@ impl Monitor {
         }
 
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(
+                self.config.liveu.monitor.modems_interval,
+            ))
+            .await;
 
             if !self.liveu.is_streaming(&self.boss_id).await {
                 ignore = true;
@@ -127,7 +130,10 @@ impl Monitor {
         };
 
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(
+                self.config.liveu.monitor.battery_interval,
+            ))
+            .await;
 
             if !self.liveu.is_streaming(&self.boss_id).await {
                 continue;
@@ -143,53 +149,8 @@ impl Monitor {
                 continue;
             };
 
-            if !battery.charging && battery.discharging && !prev.discharging {
-                let _ = self
-                    .client
-                    .say(
-                        self.config.twitch.channel.to_owned(),
-                        "LiveU: RIP PowerBank / Cable Disconnected".to_string(),
-                    )
-                    .await;
-            }
-
-            if battery.charging && !battery.discharging && !prev.charging {
-                let _ = self
-                    .client
-                    .say(
-                        self.config.twitch.channel.to_owned(),
-                        "LiveU: Now charging".to_string(),
-                    )
-                    .await;
-            }
-
-            if battery.percentage < 100
-                && !battery.charging
-                && !battery.discharging
-                && (prev.charging || prev.discharging)
-            {
-                let _ = self
-                    .client
-                    .say(
-                        self.config.twitch.channel.to_owned(),
-                        "LiveU: Too hot to charge".to_string(),
-                    )
-                    .await;
-            }
-
-            if battery.percentage == 100
-                && !battery.charging
-                && !battery.discharging
-                && prev.charging
-                && !prev.discharging
-            {
-                let _ = self
-                    .client
-                    .say(
-                        self.config.twitch.channel.to_owned(),
-                        "LiveU: Fully charged".to_string(),
-                    )
-                    .await;
+            if self.config.liveu.monitor.battery_charging {
+                self.battery_charging(&battery, &prev).await;
             }
 
             for percentage in &self.config.liveu.monitor.battery_notification {
@@ -198,6 +159,57 @@ impl Monitor {
             }
 
             prev = battery;
+        }
+    }
+
+    pub async fn battery_charging(&self, battery: &liveu::Battery, prev: &liveu::Battery) {
+        if !battery.charging && battery.discharging && !prev.discharging {
+            let _ = self
+                .client
+                .say(
+                    self.config.twitch.channel.to_owned(),
+                    "LiveU: RIP PowerBank / Cable Disconnected".to_string(),
+                )
+                .await;
+        }
+
+        if battery.charging && !battery.discharging && !prev.charging {
+            let _ = self
+                .client
+                .say(
+                    self.config.twitch.channel.to_owned(),
+                    "LiveU: Now charging".to_string(),
+                )
+                .await;
+        }
+
+        if battery.percentage < 100
+            && !battery.charging
+            && !battery.discharging
+            && (prev.charging || prev.discharging)
+        {
+            let _ = self
+                .client
+                .say(
+                    self.config.twitch.channel.to_owned(),
+                    "LiveU: Too hot to charge".to_string(),
+                )
+                .await;
+        }
+
+        if battery.percentage == 100
+            && !battery.charging
+            && !battery.discharging
+            && prev.charging
+            && !prev.discharging
+        {
+            let _ = self
+                .client
+                .say(
+                    self.config.twitch.channel.to_owned(),
+                    "LiveU: Fully charged".to_string(),
+                )
+                .await;
         }
     }
 

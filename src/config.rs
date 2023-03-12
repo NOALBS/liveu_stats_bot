@@ -20,8 +20,11 @@ pub struct Liveu {
 #[serde(rename_all = "camelCase")]
 pub struct Monitor {
     pub battery: bool,
+    pub battery_charging: bool,
     pub battery_notification: Vec<u8>,
+    pub battery_interval: u64,
     pub modems: bool,
+    pub modems_interval: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -115,6 +118,9 @@ impl Config {
             battery: monitor_enabled,
             battery_notification: [99, 50, 10, 5, 1].to_vec(),
             modems: monitor_enabled,
+            battery_interval: 10,
+            modems_interval: 10,
+            battery_charging: monitor_enabled,
         };
 
         let mut liveu = Liveu {
