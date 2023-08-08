@@ -1,7 +1,7 @@
 name: Release
 
 on:
-  pull:
+  push:
     tags:
       - v[0-9]+.*
 
