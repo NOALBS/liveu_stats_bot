@@ -4,7 +4,7 @@ A chat bot that makes it easier to see the current status of the battery and mod
 
 ## How do i run this?
 
-Just download the latest binary from [releases](https://github.com/715209/liveu_stats_bot/releases) and execute it.
+Just download the latest binary from [releases](https://github.com/BigChiefRick/liveu_stats_bot/releases) and execute it.
 
 ## Config
 
