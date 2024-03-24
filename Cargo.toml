@@ -1,6 +1,6 @@
 [package]
 name = "liveu_stats_bot"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Brian Spit <brian@715209.net>"]
 edition = "2021"
 
@@ -8,12 +8,12 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-quick-xml = {version = "0.22", features = ["serialize"]}
+quick-xml = {version = "0.26", features = ["serialize"]}
 read_input = "0.8"
-reqwest = { version = "0.11", features = ["json"]}
+reqwest = { version = "0.12", features = ["json"]}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 tokio = { version = "1.5", features = ["macros", "rt", "rt-multi-thread"] }
 twitch-irc = "3.0"
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1.8", features = ["v4"] }
